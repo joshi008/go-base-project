@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"go-base-project/controllers"
+	"go-base-project/services"
 	"go-base-project/utils"
 )
 
@@ -12,11 +13,40 @@ import (
 func SetupRoutes(db *sql.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	// Initialize controllers
+	// Initialize controllers and services
 	healthController := controllers.NewHealthController(db)
+	
+	// Expense service and controller
+	expenseService := services.NewExpenseService(db)
+	expenseController := controllers.NewExpenseController(expenseService)
 
 	// Health check endpoint
 	mux.HandleFunc("/health", healthController.HealthCheck)
+	
+	// Expense endpoints
+	mux.HandleFunc("/expenses", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			expenseController.GetExpenses(w, r)
+		case http.MethodPost:
+			expenseController.CreateExpense(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// User endpoints
+	userController := controllers.NewUserController(db)
+	mux.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			userController.GetUsers(w, r)
+		case http.MethodPost:
+			userController.CreateUser(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	// Root endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
