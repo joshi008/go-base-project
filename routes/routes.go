@@ -22,9 +22,10 @@ func SetupRoutes(db *sql.DB) http.Handler {
 	carController := controllers.NewCarController(db) // Pass nil for strategy for now
 	mux.HandleFunc("/branches", carController.CreateBranch)
 	mux.HandleFunc("/cars", carController.CreateCar)
+	mux.HandleFunc("/pricing", carController.CreatePricing)
 
 	// Updation for pricing
-	mux.HandleFunc("/pricing", carController.UpdatePricing)
+	mux.HandleFunc("/pricing-update", carController.UpdatePricing)
 
 	// Get Car for booking
 	mux.HandleFunc("/booking", carController.GetCar)

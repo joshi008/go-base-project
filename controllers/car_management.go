@@ -109,16 +109,36 @@ func (cc *CarController) GetCar(w http.ResponseWriter, r *http.Request) {
 	startTime := r.URL.Query().Get("startTime")
 	endTime := r.URL.Query().Get("endTime")
 
-	// CreateBooking
-	services := services.NewBookingService(cc.DB)
-	intCategoryId, err := strconv.Atoi(categoryId)
-	carId, err := services.CreateBooking(intCategoryId, startTime, endTime)
-
-	if err != nil {
-		http.Error(w, "Failed to create booking", http.StatusInternalServerError)
+	// Validate required parameters
+	if categoryId == "" || startTime == "" || endTime == "" {
+		http.Error(w, "Missing required parameters: categoryId, startTime, endTime", http.StatusBadRequest)
 		return
 	}
 
+	// Convert categoryId to int
+	intCategoryId, err := strconv.Atoi(categoryId)
+	if err != nil {
+		http.Error(w, "Invalid categoryId format", http.StatusBadRequest)
+		return
+	}
+
+	// CreateBooking
+	bookingService := services.NewBookingService(cc.DB)
+	carId, err := bookingService.CreateBooking(intCategoryId, startTime, endTime)
+
+	if err != nil {
+		fmt.Printf("Booking error: %v\n", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Car booked successfully", "carId": carId})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Car booked successfully", 
+		"carId": carId,
+		"categoryId": intCategoryId,
+		"startTime": startTime,
+		"endTime": endTime,
+	})
 }
