@@ -1,0 +1,20 @@
+Problem Statement:
+Design and implement an in-memory Car Rental System where users can search for, book, and return vehicles.
+
+Core Requirements:
+
+Add Vehicles: The system should allow adding new vehicles to the fleet (with a unique ID, model name, and daily rental rate).
+
+Add Users: Register users into the system.
+
+Search: Users should be able to query the system for available cars.
+
+Book a Vehicle: A user can book a car for a specific number of days. If the car is already booked, the system must reject the request.
+
+Return a Vehicle: A user can return a car. The system should calculate the total cost based on the daily rate and the number of days booked, mark the car as available again, and output the receipt.
+
+Bonus Constraints (for a Senior Engineer):
+
+Implement dynamic pricing: Increase the daily rental rate by 10% if less than 20% of the total fleet is currently available.
+
+Make the booking function thread-safe so two concurrent users cannot book the same car at the exact same time.
