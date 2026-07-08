@@ -1,201 +1,205 @@
 package main
 
-import "fmt"
-
-// Models
-
-type User struct {
-	ID           string
-	Transactions []Transaction
-}
-
-type Transaction struct {
-	ID           string
-	LenderUserId string
-	SplitType    SplitType
-	Amount       int
-	Splits       []Split
-}
-
-type Split struct {
-	ID             string
-	LenderUserId   string
-	BorrowerUserId string
-	RawAmount      int
-	Amount         int
-}
-
-type SplitType int
-
-const (
-	EQUAL SplitType = iota
-	EXACT
-	PERCENTAGE
+import (
+	"fmt"
+	"time"
 )
 
+type VehicleType int
+
+const (
+	MOTORCYCLES VehicleType = iota
+	CARS
+	TRUCKS
+)
+
+type Vehicle struct {
+	ID   string
+	Type VehicleType
+}
+
+type ParkingSlots struct {
+	ID             string
+	VehicleType    VehicleType
+	TotalSlots     int
+	AvailableSlots int
+}
+
+type Pricing struct {
+	ID            string
+	VehicleType   VehicleType
+	AmountPerHour int
+}
+
+type Appointment struct {
+	ID          string
+	VehicleId   string
+	EntryTime   time.Time
+	ExitTime    time.Time
+	FinalAmount int
+}
+
 // Constructor
-func NewUser(id string) *User {
-	return &User{
-		ID: id,
-	}
-}
-func NewTransaction(id string, user *User, splitType SplitType, amount int) *Transaction {
-	return &Transaction{
-		ID:           id,
-		LenderUserId: user.ID,
-		SplitType:    splitType,
-		Amount:       amount,
-	}
-}
-func NewSplit(id string, lenderUserId string, borrowerUserId string, rawAmount int) *Split {
-	return &Split{
-		ID:             id,
-		LenderUserId:   lenderUserId,
-		BorrowerUserId: borrowerUserId,
-		RawAmount:      rawAmount,
+func NewParkingSlot(ID string, VehicleType VehicleType, TotalSlots int) *ParkingSlots {
+	return &ParkingSlots{
+		ID:             ID,
+		VehicleType:    VehicleType,
+		TotalSlots:     TotalSlots,
+		AvailableSlots: TotalSlots,
 	}
 }
 
-// Storage
-type Storage struct {
-	users        map[string]*User
-	transactions map[string]*Transaction
-	splits       map[string]*Split
+func NewVehicle(ID string, VehicleType VehicleType) *Vehicle {
+	return &Vehicle{
+		ID:   ID,
+		Type: VehicleType,
+	}
 }
 
-func NewStorage() *Storage {
-	return &Storage{
-		users:        make(map[string]*User),
-		transactions: make(map[string]*Transaction),
-		splits:       make(map[string]*Split),
+func NewPricing(ID string, VehicleType VehicleType, AmountPerHour int) *Pricing {
+	return &Pricing{
+		ID:            ID,
+		VehicleType:   VehicleType,
+		AmountPerHour: AmountPerHour,
 	}
 }
-func (s *Storage) AddUser(user *User) error {
-	if _, exists := s.users[user.ID]; exists {
-		return fmt.Errorf("User already exists")
+
+func NewAppointment(ID string, VehicleID string, EntryTime time.Time) *Appointment {
+	return &Appointment{
+		ID:          ID,
+		VehicleId:   VehicleID,
+		EntryTime:   EntryTime,
+		ExitTime:    EntryTime,
+		FinalAmount: -1,
 	}
-	s.users[user.ID] = user
-	fmt.Println("User added ", user.ID)
-	return nil
 }
-func (s *Storage) GetUser(id string) (*User, error) {
-	if _, exists := s.users[id]; !exists {
-		return nil, fmt.Errorf("User does not exist")
+
+// In Memory Storage
+type storage struct {
+	vehicle      map[string]*Vehicle
+	parkingSlots map[string]*ParkingSlots
+	pricing      map[string]*Pricing
+	appointments map[string]*Appointment
+}
+
+func NewStorage() *storage {
+	return &storage{
+		vehicle:      make(map[string]*Vehicle),
+		parkingSlots: make(map[string]*ParkingSlots),
+		pricing:      make(map[string]*Pricing),
+		appointments: make(map[string]*Appointment),
 	}
-	return s.users[id], nil
 }
-func (s *Storage) GetSplitsForUser(userId string) []*Split {
-	hereSplit := []*Split{}
-	for _, split := range s.splits {
-		if split.BorrowerUserId == userId || split.LenderUserId == userId {
-			hereSplit = append(hereSplit, split)
+func (s *storage) AddVehicle(V *Vehicle) *Vehicle {
+	fmt.Println("New Vehicle created: ", V.ID, V.Type)
+	s.vehicle[V.ID] = V
+	return V
+}
+func (s *storage) AddParkingSlot(P *ParkingSlots) {
+	fmt.Println("New Parking Slot added: ", P.ID, P.VehicleType, P.TotalSlots)
+	s.parkingSlots[P.ID] = P
+}
+func (s *storage) AddPricing(V *Pricing) {
+	fmt.Println("New Pricing Added: ", V.ID, V.VehicleType, V.AmountPerHour)
+	s.pricing[V.ID] = V
+}
+func (s *storage) GetPriceByType(vehicleType VehicleType) *Pricing {
+	for _, p := range s.pricing {
+		if p.VehicleType == vehicleType {
+			return p
 		}
 	}
-	return hereSplit
+	return nil
+}
+func (s *storage) GetParkingLotByType(vehicleType VehicleType) *ParkingSlots {
+	for _, p := range s.parkingSlots {
+		if p.VehicleType == vehicleType {
+			return p
+		}
+	}
+	return nil
+}
+func (s *storage) GetVehicleByVehicleID(vehicleID string) *Vehicle {
+	for _, p := range s.vehicle {
+		if p.ID == vehicleID {
+			return p
+		}
+	}
+	return nil
 }
 
-// Service
-type SplitwiseService struct {
-	db *Storage
+// Sevice
+type ParkingService struct {
+	db *storage
 }
 
-func NewSplitwiseService(db *Storage) *SplitwiseService {
-	return &SplitwiseService{
+func NewParkingService(db *storage) *ParkingService {
+	return &ParkingService{
 		db: db,
 	}
 }
 
-func (s *SplitwiseService) AddExpense(lenderId string, amount int, borrowers []string, splitStrategy SplitStrategy, splitVals []int) error {
-	lender, err := s.db.GetUser(lenderId)
-	if err != nil {
-		return fmt.Errorf("lender not found: %v", err)
+func (P *ParkingService) EnterVehicle(Vehicle *Vehicle, entryTime time.Time) *Appointment {
+	price := P.db.GetPriceByType(Vehicle.Type)
+	if price == nil {
+		return nil
 	}
 
-	txId := fmt.Sprintf("tx-%d", len(s.db.transactions)+1)
-	tx := NewTransaction(txId, lender, EQUAL, amount)
-	s.db.transactions[txId] = tx
-
-	vals, err := splitStrategy.Calculate(amount, borrowers, splitVals)
-
-	for i, borrower := range borrowers {
-		if _, err := s.db.GetUser(borrower); err != nil {
-			return fmt.Errorf("Not found")
-		}
-
-		splitId := fmt.Sprintf("sp-%d-%d", len(s.db.splits)+1, i)
-		split := NewSplit(splitId, lender.ID, borrower, vals[borrower])
-
-		s.db.splits[splitId] = split
-
-		tx.Splits = append(tx.Splits, *split)
+	lot := P.db.GetParkingLotByType(Vehicle.Type)
+	if lot == nil || lot.AvailableSlots == 0 {
+		fmt.Println("Slots Full")
+		return nil
 	}
 
-	fmt.Printf("Success: %s paid %d, split equally among %d people.\n", lenderId, amount, len(borrowers))
-	return nil
+	lot.AvailableSlots = lot.AvailableSlots - 1
+
+	fmt.Println("Vehicle Entered : ", Vehicle)
+	aid := fmt.Sprintf("aid-%d", len(P.db.appointments))
+	a := NewAppointment(aid, Vehicle.ID, entryTime)
+
+	return a
 }
+func (P *ParkingService) ExitVehicle(Appointment *Appointment, exitTime time.Time) {
+	vehicle := P.db.GetVehicleByVehicleID(Appointment.VehicleId)
+	price := P.db.GetPriceByType(vehicle.Type)
 
-func (s *SplitwiseService) ShowBalances(userId string) (map[string]int, error) {
-	_, err := s.db.GetUser(userId)
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %v", err)
-	}
+	lot := P.db.GetParkingLotByType(vehicle.Type)
 
-	splits := s.db.GetSplitsForUser(userId)
-	balance := make(map[string]int)
-	for _, s := range splits {
-		// fmt.Println(s)
-		if s.LenderUserId == s.BorrowerUserId {
-			// Do nothing
-		} else if s.LenderUserId == userId {
-			balance[s.BorrowerUserId] -= s.RawAmount
-		} else {
-			balance[s.LenderUserId] += s.RawAmount
-		}
-	}
+	timeInHours := int(time.Duration(exitTime.Sub(Appointment.EntryTime)).Hours())
 
-	return balance, nil
+	Appointment.FinalAmount = price.AmountPerHour * timeInHours
+
+	fmt.Println("Vehicle Exited : ", vehicle)
+	fmt.Println("Pay: ", Appointment.FinalAmount)
+	lot.AvailableSlots = lot.AvailableSlots + 1
 }
-
-// Split Strategy
-type SplitStrategy interface {
-	Calculate(amount int, borrowers []string, vals []int) (map[string]int, error)
-}
-type EqualSplit struct{}
-
-func (e *EqualSplit) Calculate(amount int, borrowers []string, vals []int) (map[string]int, error) {
-	eqAmount := amount / len(borrowers)
-
-	splits := make(map[string]int)
-	for _, bor := range borrowers {
-		splits[bor] = eqAmount
-	}
-	return splits, nil
-}
-
-type ExactSplit struct{}
 
 func main() {
-	fmt.Println("Starting Program!")
+	fmt.Println("Starting Program!!!")
 
 	db := NewStorage()
-	db.AddUser(NewUser("u1"))
-	db.AddUser(NewUser("u2"))
-	db.AddUser(NewUser("u3"))
 
-	splitwise := NewSplitwiseService(db)
-	involvedUsers := []string{"u1", "u2", "u3"}
-	equalStrategy := &EqualSplit{}
-	err := splitwise.AddExpense("u1", 900, involvedUsers, equalStrategy, make([]int, 0))
-	if err != nil {
-		fmt.Println("Split Error")
-	}
+	v1 := db.AddVehicle(NewVehicle("DL1", CARS))
+	v2 := db.AddVehicle(NewVehicle("UP1", TRUCKS))
+	db.AddVehicle(NewVehicle("UP9", TRUCKS))
+	db.AddVehicle(NewVehicle("DL2", CARS))
+	db.AddVehicle(NewVehicle("DL3", CARS))
+	v3 := db.AddVehicle(NewVehicle("KA3", MOTORCYCLES))
+	db.AddVehicle(NewVehicle("KA5", MOTORCYCLES))
 
-	involvedUsers = []string{"u1", "u2"}
-	err = splitwise.AddExpense("u2", 600, involvedUsers, equalStrategy, make([]int, 0))
-	if err != nil {
-		fmt.Println("Split Error")
-	}
+	db.AddParkingSlot(NewParkingSlot("P1", CARS, 25))
+	db.AddParkingSlot(NewParkingSlot("P2", MOTORCYCLES, 50))
+	db.AddParkingSlot(NewParkingSlot("P3", TRUCKS, 20))
 
-	bal, _ := splitwise.ShowBalances("u1")
-	fmt.Println(bal)
+	db.AddPricing(NewPricing("PC1", CARS, 20))
+	db.AddPricing(NewPricing("PC2", MOTORCYCLES, 10))
+	db.AddPricing(NewPricing("PC3", TRUCKS, 50))
+
+	ps := NewParkingService(db)
+
+	a1 := ps.EnterVehicle(v1, time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC))
+	ps.EnterVehicle(v2, time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC))
+	ps.EnterVehicle(v3, time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC))
+	ps.ExitVehicle(a1, time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC))
+
 }
