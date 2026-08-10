@@ -5,48 +5,46 @@ import (
 	"strconv"
 )
 
-func fizzF(c chan string) {
-	c <- "Fizz"
+func odd(n int, ch chan string, oddFinal chan bool, evensyncy chan bool, oddsyncy chan bool) {
+	for i := 1; i <= n; i++ {
+		if i%2 != 0 {
+			s := "Odd : " + strconv.Itoa(i)
+			<-oddsyncy
+			fmt.Println(s)
+			evensyncy <- false
+		}
+	}
+	oddFinal <- true
 }
 
-func buzzF(c chan string) {
-	c <- "Buzz"
-}
-
-func fizzBuzzF(c chan string) {
-	c <- "FizzBuzz"
-}
-
-func numF(c chan string, num int) {
-	// Convert the integer to a string to match the channel type
-	c <- strconv.Itoa(num)
+func even(n int, ch chan string, evenFinal chan bool, evensyncy chan bool, oddsyncy chan bool) {
+	for i := 1; i <= n; i++ {
+		if i%2 == 0 {
+			s := "Even : " + strconv.Itoa(i)
+			<-evensyncy
+			fmt.Println(s)
+			oddsyncy <- true
+		}
+	}
+	evenFinal <- true
 }
 
 func main() {
-	num := 20
+	n := 10
+	ch := make(chan string, n)
+	evenSync := make(chan bool, n)
+	oddSync := make(chan bool, n)
 
-	fizz := make(chan string)
-	buzz := make(chan string)
-	fizzBuzz := make(chan string)
-	numChan := make(chan string)
+	evenFinal := make(chan bool)
+	oddFinal := make(chan bool)
+	fmt.Println("Starting of the program")
 
-	for i := 1; i <= num; i++ {
-		// 1. Must check 15 (3 and 5) first!
-		if i%15 == 0 {
-			go fizzBuzzF(fizzBuzz)
-			fmt.Println(<-fizzBuzz)
+	go even(n, ch, evenFinal, evenSync, oddSync)
+	go odd(n, ch, oddFinal, evenSync, oddSync)
 
-		} else if i%3 == 0 {
-			go fizzF(fizz)
-			fmt.Println(<-fizz)
+	oddSync <- true
 
-		} else if i%5 == 0 {
-			go buzzF(buzz)
-			fmt.Println(<-buzz)
-
-		} else {
-			go numF(numChan, i)
-			fmt.Println(<-numChan)
-		}
-	}
+	p1 := <-evenFinal
+	p2 := <-oddFinal
+	fmt.Println(p1, p2)
 }
