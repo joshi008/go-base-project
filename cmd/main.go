@@ -1,250 +1,151 @@
 package main
 
-import (
-	"fmt"
-	"reflect"
-	"strconv"
-)
+import "fmt"
 
-// (ConnectingRule) OR (Rule)
-type Evaluator int
+type Data map[string]any
 
-const (
-	EQUAL Evaluator = iota
-	NOTEQUAL
-	GREATER
-	LESSER
-	GREATERANDEQUAL
-	LESSERANDEQUAL
-)
-
-type Rule struct {
-	ID           string
-	VariableName string
-	Evaluator    Evaluator
-	ValueString  string
-	NotOperation bool
+type Node interface {
+	Evaluate(Data) (bool, error)
 }
 
-type LogicalOperation int
-
-const (
-	ANDOPERATION LogicalOperation = iota
-	OROPERATION
-)
-
-type ConnectingRule struct {
-	ID               string
-	LogicalOperation LogicalOperation
-	RuleA            *Rule
-	RuleB            *ConnectingRule
+type AndNode struct {
+	Children []Node
 }
 
-type UserAttribute struct {
-	ID               string
-	Country          string
-	KycVerified      bool
-	MonthlyVolume    int64 //Defined int here so that float overflow is not a miss
-	AccountAgeInDays int64
-	IsBlocked        bool
-	AppVersion       string
+type OrNode struct {
+	Children []Node
 }
 
-// Constructors
-func NewRule(ID string, VariableName string, Evaluator Evaluator, ValueString string, NotOperation bool) *Rule {
-	return &Rule{
-		ID:           ID,
-		VariableName: VariableName,
-		Evaluator:    Evaluator,
-		ValueString:  ValueString,
-		NotOperation: NotOperation,
-	}
-}
-func NewUserAttribute(ID string, Country string, KycVerified bool, MonthlyVolume int64, AccountAgeInDays int64, IsBlocked bool, AppVersion string) *UserAttribute {
-	return &UserAttribute{
-		ID:               ID,
-		Country:          Country,
-		KycVerified:      KycVerified,
-		MonthlyVolume:    MonthlyVolume,
-		AccountAgeInDays: AccountAgeInDays,
-		IsBlocked:        IsBlocked,
-		AppVersion:       AppVersion,
-	}
-}
-func NewConnectingRule(ID string, LogicalOperation LogicalOperation, RuleA *Rule, RuleB *ConnectingRule) *ConnectingRule {
-	return &ConnectingRule{
-		ID:               ID,
-		LogicalOperation: LogicalOperation,
-		RuleA:            RuleA,
-		RuleB:            RuleB,
-	}
-}
-
-// DB Storage In memory
-type DB struct {
-	UserAttributes map[string]*UserAttribute
-	Rules          map[string]*Rule
-	ConnectingRule map[string]*ConnectingRule
-}
-
-func NewDB() *DB {
-	return &DB{
-		UserAttributes: make(map[string]*UserAttribute),
-		Rules:          make(map[string]*Rule),
-		ConnectingRule: make(map[string]*ConnectingRule),
-	}
-}
-func (d *DB) NewUserAttribute(ID string, Country string, KycVerified bool, MonthlyVolume int64, AccountAgeInDays int64, IsBlocked bool, AppVersion string) *UserAttribute {
-	user := NewUserAttribute(ID, Country, KycVerified, MonthlyVolume, AccountAgeInDays, IsBlocked, AppVersion)
-	d.UserAttributes[ID] = user
-	return user
-}
-func (d *DB) NewRuleAddition(Rule *Rule) {
-	d.Rules[Rule.ID] = Rule
-}
-
-func (d *DB) NewConnectingRuleAddition(ID string, RuleA *Rule, RuleB *ConnectingRule, LogicalOperation LogicalOperation) *ConnectingRule {
-	cr := NewConnectingRule(ID, LogicalOperation, RuleA, RuleB)
-	d.ConnectingRule[ID] = cr
-	return cr
-}
-
-// Rule Evaluator Service
-type RuleEvaluator struct {
-	DB *DB
-}
-
-func NewRuleEvaluator(DB *DB) *RuleEvaluator {
-	return &RuleEvaluator{
-		DB: DB,
-	}
-}
-
-func (r *RuleEvaluator) Evaluate(userAttribute *UserAttribute, connectingRule *ConnectingRule) bool {
-	var rule1Analysis bool = false
-	var rule2Analysis bool = false
-	if connectingRule.RuleA != nil {
-		rule1Analysis = r.EvaluateIndividualRule(userAttribute, connectingRule.RuleA)
-	}
-	if connectingRule.RuleA != nil {
-		rule2Analysis = r.Evaluate(userAttribute, connectingRule.RuleB) // Connecting Rule Needs Recursion over here.
-	}
-
-	var resultAnalysis bool
-
-	switch connectingRule.LogicalOperation {
-	case ANDOPERATION:
-		resultAnalysis = rule1Analysis && rule2Analysis
-	case OROPERATION:
-		resultAnalysis = rule1Analysis || rule2Analysis
-	default:
-		resultAnalysis = false
-	}
-
-	return resultAnalysis
-}
-
-func (r *RuleEvaluator) EvaluateIndividualRule(userAttribute *UserAttribute, rule *Rule) bool {
-	result := false
-	switch rule.Evaluator {
-	case EQUAL:
-		equalEval := &EqualEvaluatorStrategy{}
-		if equalEval.Validate(userAttribute, rule) {
-			result = equalEval.Calculate(userAttribute, rule)
-			if rule.NotOperation {
-				result = !result
-			}
-		}
-	case GREATER:
-		greaterEval := &GreaterEvaluatorStrategy{}
-		if greaterEval.Validate(userAttribute, rule) {
-			result = greaterEval.Calculate(userAttribute, rule)
-			if rule.NotOperation {
-				result = !result
-			}
+func (n AndNode) Evaluate(d Data) (bool, error) {
+	var ans bool
+	for i, childNode := range n.Children {
+		r, _ := childNode.Evaluate(d)
+		if i == 0 {
+			ans = r
+		} else {
+			ans = ans && r
 		}
 	}
-
-	return result
+	return ans, nil
 }
 
-type EvaluatorStrategy interface {
-	Validate(userAttribute *UserAttribute, rule *Rule) bool
-	Calculate(userAttribute *UserAttribute, rule *Rule) bool
-}
-
-type EqualEvaluatorStrategy struct{}
-
-func (eq *EqualEvaluatorStrategy) Validate(userAttribute *UserAttribute, rule *Rule) bool {
-	result := false
-	t := reflect.ValueOf(userAttribute)
-	r := rule.VariableName
-	value := t.FieldByName(r)
-	if value.CanInt() || value.String() != "" {
-		result = true
+func (n OrNode) Evaluate(d Data) (bool, error) {
+	var ans bool
+	for i, childNode := range n.Children {
+		r, _ := childNode.Evaluate(d)
+		if i == 0 {
+			ans = r
+		} else {
+			ans = ans || r
+		}
 	}
-	return result
-}
-func (eq *EqualEvaluatorStrategy) Calculate(userAttribute *UserAttribute, rule *Rule) bool {
-	result := false
-	t := reflect.ValueOf(userAttribute)
-	r := rule.VariableName
-	value := t.FieldByName(r)
-	comparisonValue := rule.ValueString
-	fmt.Println(comparisonValue)
-	if value.CanInt() {
-		val, _ := strconv.Atoi(comparisonValue)
-		result = value.Elem().Int() == int64(val)
-	} else {
-		result = value.Elem().String() == comparisonValue
-	}
-	return result
+	return ans, nil
 }
 
-type GreaterEvaluatorStrategy struct{}
+type Operator string
 
-func (eq *GreaterEvaluatorStrategy) Validate(userAttribute *UserAttribute, rule *Rule) bool {
-	result := false
-	t := reflect.ValueOf(userAttribute)
-	r := rule.VariableName
-	value := t.FieldByName(r)
-	if value.CanInt() {
-		result = true
-	}
-	return result
+const (
+	OPEQ   Operator = "equal"
+	OPNEQ  Operator = "notequal"
+	OPGR   Operator = "greater"
+	OPGREQ Operator = "greaterandequal"
+)
+
+type ConditionNode struct {
+	key      string
+	val      any
+	operator Operator
 }
-func (eq *GreaterEvaluatorStrategy) Calculate(userAttribute *UserAttribute, rule *Rule) bool {
-	result := false
-	t := reflect.ValueOf(userAttribute)
-	r := rule.VariableName
-	value := t.FieldByName(r)
-	comparisonValue := rule.ValueString
-	fmt.Println(comparisonValue)
-	if value.CanInt() {
-		val, _ := strconv.Atoi(comparisonValue)
-		result = value.Int() > int64(val)
+
+func (n ConditionNode) Evaluate(d Data) (bool, error) {
+	aval, ok := d[n.key]
+	if !ok {
+		return false, nil
 	}
-	return result
+
+	switch v := aval.(type) {
+	case string:
+		return StringOperation(v, n.val, n.operator), nil
+	case int:
+		targInt, _ := n.val.(int)
+		return IntOperation(float64(v), targInt, n.operator), nil
+	case float64:
+		return IntOperation(v, n.val, n.operator), nil
+	case bool:
+		return BoolOperation(v, n.val, n.operator), nil
+	}
+
+	return false, nil
+}
+
+func IntOperation(val float64, comp any, op Operator) bool {
+	targ, _ := comp.(float64)
+	switch op {
+	case OPEQ:
+		return val == targ
+	case OPNEQ:
+		return val != targ
+	case OPGR:
+		return val > targ
+	case OPGREQ:
+		return val >= targ
+	}
+	return false
+}
+
+func StringOperation(val string, comp any, op Operator) bool {
+	targ, _ := comp.(string)
+	switch op {
+	case OPEQ:
+		return val == targ
+	case OPNEQ:
+		return val != targ
+	}
+	return false
+}
+
+func BoolOperation(val bool, comp any, op Operator) bool {
+	targ, _ := comp.(bool)
+	switch op {
+	case OPEQ:
+		return val == targ
+	case OPNEQ:
+		return val != targ
+	}
+	return false
 }
 
 func main() {
-	fmt.Println("Starting of the program!!!")
+	fmt.Println("Welcome to program!")
 
-	db := NewDB()
-	user1 := db.NewUserAttribute("123", "IN", true, 250000, 180, false, "2.5.0")
+	data := Data{
+		"userId":           "123",
+		"country":          "IN",
+		"kycVerified":      true,
+		"monthlyVolume":    250000,
+		"accountAgeInDays": 180,
+		"isBlocked":        false,
+		"appVersion":       "2.5.0",
+	}
 
-	r1 := NewRule("i1", "IsBlocked", EQUAL, "true", true)
-	db.NewRuleAddition(r1)
-	r2 := NewRule("i2", "AccountAgeInDays", GREATER, "30", false)
-	db.NewRuleAddition(r2)
+	rule1 := AndNode{
+		Children: []Node{
+			ConditionNode{
+				key:      "isBlocked",
+				val:      false,
+				operator: OPEQ,
+			},
+			ConditionNode{
+				key:      "accountAgeInDays",
+				val:      30.0,
+				operator: OPGR,
+			},
+		},
+	}
 
-	cr1 := db.NewConnectingRuleAddition("cr1", r1, nil, ANDOPERATION)
+	result, _ := rule1.Evaluate(data)
 
-	ruleEvaluator := NewRuleEvaluator(db)
-
-	result := ruleEvaluator.Evaluate(user1, cr1)
-
-	fmt.Println("Result: ", result)
+	fmt.Println("Rule 1 result: ", result)
 }
 
 // NOT(isBlocked = true) AND (accountAgeInDays > 30)
