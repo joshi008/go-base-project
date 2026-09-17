@@ -2,8 +2,6 @@
 
 A production-ready Go HTTP server with PostgreSQL database connection, structured for scalability and maintainability.
 
-Practice questions and solutions from `hrishabh/practice-1` through `hrishabh/practice-17` are collected under [`practices/`](./practices/README.md). The original practice branches are unchanged.
-
 ## Features
 
 - ✅ HTTP server running on port 8080

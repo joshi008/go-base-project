@@ -1,0 +1,55 @@
+Parking system that allows you to book the parking spot, reserve a spot, calculate fare based on time (any value/hr)
+
+a. What does the fare class have as its members?
+b. How does the entry time will be stored? And which class is going to store it?
+
+Api Design
+
+Database schema
+
+Design pattern
+
+Entities: ParkingSystem, Vehicle, Fare, Booking
+
+ParkingSystem
+- ParkingSystemID : UUID
+- Bookings[]. (ParkingBookingTable - <ParkingId, BookingId>)
+- Fares[] - Array of IDs
+- Slots[] - (ParkingSlotsTable - <ParkingId, SlotId>)
+
+Vehicle (DB)
+- VehicleType - String
+- Model - String
+- UUID - UUID
+
+Fare [Per hour]:
+- FareId : UUID
+- Amount (Paisa) [Int64]
+- VehicleType - String
+
+Booking:
+- BookingID : UUID
+- Vehicle - VehicleId
+- Fare - FareId
+- Slots[] - Array of IDs
+
+Slot:
+- ParkingId - UUID
+- StartTime - Timestamp
+- EndTime - Timestamp
+- isBooked - Boolean
+
+
+API Design:
+- CRUD - Vehicle
+- New Onboarding for Parking System:
+    - Create/Update/Delete Fares
+    - Create/Update/Delete Slots
+    - Create/Update of Parking System - Input for Fares and Slots
+Every API after this would include ParkingSystemId
+- List Available Slots API
+- BookingAPI:
+    - Req: VehicleId, StartTime, EndTime
+
+
+BookVehicle()
